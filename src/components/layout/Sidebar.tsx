@@ -30,8 +30,8 @@ export const Sidebar: React.FC = () => {
           <Ship className="w-5 h-5" />
         </div>
         <div>
-          <h2 className="text-sm font-bold text-white tracking-wide uppercase">Export Manager</h2>
-          <p className="text-xs text-slate-400 font-medium">HĐ Bán Nông Sản & Bột</p>
+          <h2 className="text-sm font-bold text-white tracking-wide uppercase">Viet-Uc</h2>
+          <p className="text-xs text-slate-400 font-medium">HĐ Xuất Khẩu</p>
         </div>
       </div>
 
