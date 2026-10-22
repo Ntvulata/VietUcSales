@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Trash2 } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2 } from 'lucide-react';
 import { subscribeToCosts, saveCost, toggleCostPaymentStatus, removeCost } from './costsService';
 import { subscribeToShipments } from '../shipments/shipmentsService';
 import { subscribeToContracts } from '../contracts/contractsService';
@@ -23,6 +23,7 @@ export const LogisticsCostsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [groupFilter, setGroupFilter] = useState<'ALL' | CostGroup>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingCost, setEditingCost] = useState<LogisticsCost | null>(null);
 
   // Form states
   const [maCP, setMaCP] = useState('');
@@ -131,6 +132,7 @@ export const LogisticsCostsPage: React.FC = () => {
   };
 
   const openAddModal = (presetGroup?: CostGroup) => {
+    setEditingCost(null);
     const targetGroup = presetGroup || 'LOGISTICS';
     setMaCP(`CP-0${costs.length + 1}`);
     const defaultContract = contracts[0]?.soHD || '';
@@ -192,6 +194,27 @@ export const LogisticsCostsPage: React.FC = () => {
       setTyGiaQuyDoi(1);
     }
 
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (cost: LogisticsCost) => {
+    setEditingCost(cost);
+    setMaCP(cost.maCP);
+    setSoHD(cost.soHD);
+    setMaDotXuat(cost.maDotXuat || '');
+    setNhomChiPhi(cost.nhomChiPhi || 'LOGISTICS');
+    setPhuongAnLogistics(cost.phuongAnLogistics || 'XE_LE');
+    setKhoanMucChiPhi(cost.khoanMucChiPhi);
+    setNhaCungCap(cost.nhaCungCap || '');
+    setSoLuongTinhPhi(cost.soLuongTinhPhi);
+    setDonViTinh(cost.donViTinh || 'Tấn');
+    setDonGia(cost.donGia);
+    setLoaiTien(cost.loaiTien || 'VND');
+    setTyGiaQuyDoi(cost.tyGiaQuyDoi || (cost.loaiTien === 'USD' ? 25450 : 1));
+    setSoHoaDonChungTu(cost.soHoaDonChungTu || '');
+    setTinhTrangThanhToan(cost.tinhTrangThanhToan || 'CHUA_THANH_TOAN');
+    setNgayThanhToan(cost.ngayThanhToan || new Date().toISOString().split('T')[0]);
+    setGhiChu(cost.ghiChu || '');
     setIsModalOpen(true);
   };
 
@@ -279,13 +302,14 @@ export const LogisticsCostsPage: React.FC = () => {
         tinhTrangThanhToan,
         ngayThanhToan: tinhTrangThanhToan === 'DA_THANH_TOAN' ? (ngayThanhToan || '') : '',
         ghiChu: ghiChu || '',
+        createdAt: editingCost?.createdAt,
       };
 
       if (nhomChiPhi === 'LOGISTICS' && phuongAnLogistics) {
         costData.phuongAnLogistics = phuongAnLogistics;
       }
 
-      await saveCost(costData);
+      await saveCost(costData, editingCost?.id);
 
       if (keepOpenForNextRow) {
         // Increment code and reset for next row (convenient for banking rows)
@@ -293,6 +317,7 @@ export const LogisticsCostsPage: React.FC = () => {
         setDonGia(0);
         setSoHoaDonChungTu('');
       } else {
+        setEditingCost(null);
         setIsModalOpen(false);
       }
     } catch (err: any) {
@@ -451,7 +476,7 @@ export const LogisticsCostsPage: React.FC = () => {
                 <th className="py-2.5 px-3 text-right">Thành Tiền (VND)</th>
                 <th className="py-2.5 px-3">Chứng Từ</th>
                 <th className="py-2.5 px-3 text-center">Trạng Thái Chi</th>
-                <th className="py-2.5 px-3 text-center">Xóa</th>
+                <th className="py-2.5 px-3 text-center">Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-[12.5px] leading-snug">
@@ -511,12 +536,22 @@ export const LogisticsCostsPage: React.FC = () => {
                         </button>
                       </td>
                       <td className="py-2 px-3 text-center whitespace-nowrap">
-                        <button
-                          onClick={() => handleDelete(c.id, c.maCP)}
-                          className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => openEditModal(c)}
+                            className="p-1 text-slate-400 hover:text-amber-600 transition-colors rounded hover:bg-amber-50"
+                            title="Sửa khoản chi phí"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(c.id, c.maCP)}
+                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors rounded hover:bg-rose-50"
+                            title="Xóa khoản chi phí"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -579,12 +614,20 @@ export const LogisticsCostsPage: React.FC = () => {
                   <p className="text-base font-extrabold text-slate-900">{formatVND(c.thanhTienVND)}</p>
                 </div>
 
-                <button
-                  onClick={() => handleDelete(c.id, c.maCP)}
-                  className="text-xs text-rose-500 hover:text-rose-700 font-medium py-1 px-2"
-                >
-                  Xóa
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => openEditModal(c)}
+                    className="text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200 py-1 px-2.5 transition-colors flex items-center gap-1"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" /> Sửa
+                  </button>
+                  <button
+                    onClick={() => handleDelete(c.id, c.maCP)}
+                    className="text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 py-1 px-2.5 transition-colors flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Xóa
+                  </button>
+                </div>
               </div>
             </div>
           );
@@ -594,8 +637,11 @@ export const LogisticsCostsPage: React.FC = () => {
       {/* Add / Edit Cost Modal */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Thêm Chi Phí Phát Sinh"
+        onClose={() => {
+          setEditingCost(null);
+          setIsModalOpen(false);
+        }}
+        title={editingCost ? `Sửa Chi Phí: ${editingCost.maCP}` : 'Thêm Chi Phí Phát Sinh'}
         maxWidth="xl"
       >
         <form onSubmit={(e) => handleSave(e, false)} className="space-y-4">
@@ -968,14 +1014,17 @@ export const LogisticsCostsPage: React.FC = () => {
           <div className="flex items-center justify-between pt-3 border-t border-slate-100">
             <button
               type="button"
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => {
+                setEditingCost(null);
+                setIsModalOpen(false);
+              }}
               className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-medium text-sm hover:bg-slate-50 min-h-[44px]"
             >
               Hủy
             </button>
 
             <div className="flex items-center gap-2">
-              {nhomChiPhi === 'NGAN_HANG' && (
+              {!editingCost && nhomChiPhi === 'NGAN_HANG' && (
                 <button
                   type="button"
                   disabled={saving}
@@ -990,7 +1039,7 @@ export const LogisticsCostsPage: React.FC = () => {
                 disabled={saving}
                 className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm shadow-md transition-all active:scale-95 disabled:opacity-50 min-h-[44px]"
               >
-                {saving ? 'Đang Lưu...' : 'Lưu Khoản Chi'}
+                {saving ? 'Đang Lưu...' : (editingCost ? 'Cập Nhật Khoản Chi' : 'Lưu Khoản Chi')}
               </button>
             </div>
           </div>
