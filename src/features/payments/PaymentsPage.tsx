@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Search, Calendar, Trash2 } from 'lucide-react';
+import { Plus, Search, Calendar, Trash2, Edit2 } from 'lucide-react';
 import { subscribeToPayments, savePayment, removePayment } from './paymentsService';
 import { subscribeToContracts } from '../contracts/contractsService';
 import { subscribeToBankAccounts, INITIAL_BANK_ACCOUNTS } from '../master-data/masterDataService';
@@ -15,6 +15,7 @@ export const PaymentsPage: React.FC = () => {
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [searchTerm, setSearchTerm] = useState(searchParams.get('soHD') || '');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<PaymentTransaction | null>(null);
 
   // Form states
   const [maGiaoDich, setMaGiaoDich] = useState('');
@@ -50,6 +51,7 @@ export const PaymentsPage: React.FC = () => {
   const totalVND = payments.reduce((acc, p) => acc + (p.thanhTienVND || 0), 0);
 
   const openModalForContract = (c: Contract) => {
+    setEditingPayment(null);
     setMaGiaoDich(`TT-00${payments.length + 1}`);
     setSoHD(c.soHD);
     setKhachHang(c.tenKH);
@@ -85,6 +87,7 @@ export const PaymentsPage: React.FC = () => {
   }, [searchParams, contracts]);
 
   const openAddModal = () => {
+    setEditingPayment(null);
     setMaGiaoDich(`TT-00${payments.length + 1}`);
     const firstContract = contracts[0];
     setSoHD(firstContract?.soHD || '');
@@ -99,6 +102,26 @@ export const PaymentsPage: React.FC = () => {
     setIsCustomBank(false);
     setMaDienMT103('');
     setGhiChu(firstContract?.soLC ? `Số L/C: ${firstContract.soLC}` : '');
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (p: PaymentTransaction) => {
+    setEditingPayment(p);
+    setMaGiaoDich(p.maGiaoDich);
+    setSoHD(p.soHD);
+    setMaDotXuat(p.maDotXuat || '');
+    setKhachHang(p.khachHang);
+    setDotThanhToan(p.dotThanhToan);
+    setHinhThuc(p.hinhThuc || 'L/C');
+    setSoTienUSD(p.soTienUSD);
+    setTyGiaThucNhan(p.tyGiaThucNhan);
+    setNgayTienVe(p.ngayTienVe);
+    const bankName = formatShortBankName(p.nganHangNhan) || p.nganHangNhan || 'Vietcombank';
+    setNganHangNhan(bankName);
+    const exists = displayBanks.some(b => (b.tenVietTat || b.tenNganHang).toLowerCase() === bankName.toLowerCase());
+    setIsCustomBank(!exists && Boolean(bankName));
+    setMaDienMT103(p.maDienMT103 || '');
+    setGhiChu(p.ghiChu || '');
     setIsModalOpen(true);
   };
 
@@ -133,8 +156,10 @@ export const PaymentsPage: React.FC = () => {
         nganHangNhan,
         maDienMT103,
         ghiChu,
-      });
+        createdAt: editingPayment?.createdAt,
+      }, editingPayment?.id);
 
+      setEditingPayment(null);
       setIsModalOpen(false);
     } catch (err: any) {
       alert('Lỗi lưu giao dịch tiền về: ' + err.message);
@@ -210,7 +235,7 @@ export const PaymentsPage: React.FC = () => {
                 <th className="py-2.5 px-3 text-right">Quy Đổi (VND)</th>
                 <th className="py-2.5 px-3">Ngân Hàng / Điện MT103</th>
                 <th className="py-2.5 px-3">Ngày Nhận</th>
-                <th className="py-2.5 px-3 text-center">Xóa</th>
+                <th className="py-2.5 px-3 text-center">Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-[12.5px] leading-snug">
@@ -249,12 +274,22 @@ export const PaymentsPage: React.FC = () => {
                       {formatDateVN(p.ngayTienVe)}
                     </td>
                     <td className="py-2 px-3 text-center whitespace-nowrap">
-                      <button
-                        onClick={() => handleDelete(p.id, p.maGiaoDich)}
-                        className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => openEditModal(p)}
+                          className="p-1 text-slate-400 hover:text-purple-600 transition-colors rounded hover:bg-purple-50"
+                          title="Sửa giao dịch tiền về"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(p.id, p.maGiaoDich)}
+                          className="p-1 text-slate-400 hover:text-rose-600 transition-colors rounded hover:bg-rose-50"
+                          title="Xóa giao dịch tiền về"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -305,22 +340,33 @@ export const PaymentsPage: React.FC = () => {
                 <p className="text-base font-extrabold text-purple-700">{formatVND(p.thanhTienVND)}</p>
               </div>
 
-              <button
-                onClick={() => handleDelete(p.id, p.maGiaoDich)}
-                className="text-xs text-rose-500 hover:text-rose-700 font-medium py-1 px-2"
-              >
-                Xóa
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => openEditModal(p)}
+                  className="text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 py-1 px-2.5 transition-colors flex items-center gap-1"
+                >
+                  <Edit2 className="w-3.5 h-3.5" /> Sửa
+                </button>
+                <button
+                  onClick={() => handleDelete(p.id, p.maGiaoDich)}
+                  className="text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 py-1 px-2.5 transition-colors flex items-center gap-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Xóa
+                </button>
+              </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Add Payment Modal */}
+      {/* Add / Edit Payment Modal */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Ghi Nhận Giao Dịch Tiền Về (Ngân Hàng)"
+        onClose={() => {
+          setEditingPayment(null);
+          setIsModalOpen(false);
+        }}
+        title={editingPayment ? `Sửa Giao Dịch Tiền Về: ${editingPayment.maGiaoDich}` : "Ghi Nhận Giao Dịch Tiền Về (Ngân Hàng)"}
         maxWidth="lg"
       >
         <form onSubmit={handleSave} className="space-y-4">
@@ -476,7 +522,10 @@ export const PaymentsPage: React.FC = () => {
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
             <button
               type="button"
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => {
+                setEditingPayment(null);
+                setIsModalOpen(false);
+              }}
               className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-medium text-sm hover:bg-slate-50 transition-colors min-h-[44px]"
             >
               Hủy
@@ -486,7 +535,7 @@ export const PaymentsPage: React.FC = () => {
               disabled={saving}
               className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm shadow-md transition-all active:scale-95 disabled:opacity-50 min-h-[44px]"
             >
-              {saving ? 'Đang Lưu...' : 'Lưu Giao Dịch'}
+              {saving ? 'Đang Lưu...' : (editingPayment ? 'Cập Nhật Giao Dịch' : 'Lưu Giao Dịch')}
             </button>
           </div>
         </form>

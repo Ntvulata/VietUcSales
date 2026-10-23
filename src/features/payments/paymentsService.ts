@@ -37,6 +37,7 @@ export const savePayment = async (payment: Omit<PaymentTransaction, 'id'>, id?: 
 
   const payload = removeUndefined({
     ...payment,
+    updatedAt: now,
     createdAt: payment.createdAt || now,
   });
 
