@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Filter, Edit2, Trash2, Calendar, Package, Anchor, FileText } from 'lucide-react';
 import { subscribeToContracts, removeContract, updateContractStatus } from './contractsService';
@@ -6,6 +6,87 @@ import { subscribeToCustomers, subscribeToProducts, subscribeToPorts } from '../
 import { ContractFormModal } from './ContractFormModal';
 import { formatUSD, formatNumber, formatDateVN, formatShortBankName } from '../../utils/formatters';
 import type { Contract, Customer, Product, Port, ContractStatus } from '../../types';
+
+export const STATUS_CONFIG: Record<
+  ContractStatus,
+  {
+    label: string;
+    rowClass: string;
+    borderLeftClass: string;
+    cardClass: string;
+    selectClass: string;
+    dotColor: string;
+    chipActive: string;
+    chipInactive: string;
+    badgeCountActive: string;
+    badgeCountInactive: string;
+  }
+> = {
+  ACTIVE: {
+    label: 'Đang thực hiện',
+    rowClass: 'bg-emerald-50/20 hover:bg-emerald-50/50',
+    borderLeftClass: 'border-l-emerald-500',
+    cardClass: 'bg-gradient-to-r from-emerald-50/40 via-white to-white border border-emerald-200/80 border-l-[5px] border-l-emerald-500',
+    selectClass: 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100',
+    dotColor: 'bg-emerald-500',
+    chipActive: 'bg-emerald-600 text-white border-emerald-600 shadow-xs font-bold',
+    chipInactive: 'bg-emerald-50/80 text-emerald-800 hover:bg-emerald-100 border-emerald-200/90',
+    badgeCountActive: 'bg-emerald-700 text-white',
+    badgeCountInactive: 'bg-emerald-100 text-emerald-800',
+  },
+  PAID: {
+    label: 'Đã thanh toán',
+    rowClass: 'bg-teal-50/25 hover:bg-teal-50/55',
+    borderLeftClass: 'border-l-teal-500',
+    cardClass: 'bg-gradient-to-r from-teal-50/40 via-white to-white border border-teal-200/80 border-l-[5px] border-l-teal-500',
+    selectClass: 'bg-teal-50 text-teal-800 border-teal-300 hover:bg-teal-100',
+    dotColor: 'bg-teal-500',
+    chipActive: 'bg-teal-600 text-white border-teal-600 shadow-xs font-bold',
+    chipInactive: 'bg-teal-50/80 text-teal-800 hover:bg-teal-100 border-teal-200/90',
+    badgeCountActive: 'bg-teal-700 text-white',
+    badgeCountInactive: 'bg-teal-100 text-teal-800',
+  },
+  COMPLETED: {
+    label: 'Hoàn tất',
+    rowClass: 'bg-sky-50/20 hover:bg-sky-50/50',
+    borderLeftClass: 'border-l-sky-500',
+    cardClass: 'bg-gradient-to-r from-sky-50/40 via-white to-white border border-sky-200/80 border-l-[5px] border-l-sky-500',
+    selectClass: 'bg-sky-50 text-sky-800 border-sky-300 hover:bg-sky-100',
+    dotColor: 'bg-sky-500',
+    chipActive: 'bg-sky-600 text-white border-sky-600 shadow-xs font-bold',
+    chipInactive: 'bg-sky-50/80 text-sky-800 hover:bg-sky-100 border-sky-200/90',
+    badgeCountActive: 'bg-sky-700 text-white',
+    badgeCountInactive: 'bg-sky-100 text-sky-800',
+  },
+  DRAFT: {
+    label: 'Bản nháp',
+    rowClass: 'bg-amber-50/20 hover:bg-amber-50/50',
+    borderLeftClass: 'border-l-amber-400',
+    cardClass: 'bg-gradient-to-r from-amber-50/40 via-white to-white border border-amber-200/80 border-l-[5px] border-l-amber-400',
+    selectClass: 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100',
+    dotColor: 'bg-amber-400',
+    chipActive: 'bg-amber-600 text-white border-amber-600 shadow-xs font-bold',
+    chipInactive: 'bg-amber-50/80 text-amber-800 hover:bg-amber-100 border-amber-200/90',
+    badgeCountActive: 'bg-amber-700 text-white',
+    badgeCountInactive: 'bg-amber-100 text-amber-800',
+  },
+  CANCELLED: {
+    label: 'Đã hủy',
+    rowClass: 'bg-rose-50/15 hover:bg-rose-50/40 opacity-75 hover:opacity-100',
+    borderLeftClass: 'border-l-rose-400',
+    cardClass: 'bg-gradient-to-r from-rose-50/30 via-white to-white border border-rose-200/80 border-l-[5px] border-l-rose-400 opacity-80 hover:opacity-100',
+    selectClass: 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100',
+    dotColor: 'bg-rose-400',
+    chipActive: 'bg-rose-600 text-white border-rose-600 shadow-xs font-bold',
+    chipInactive: 'bg-rose-50/80 text-rose-700 hover:bg-rose-100 border-rose-200/90',
+    badgeCountActive: 'bg-rose-700 text-white',
+    badgeCountInactive: 'bg-rose-100 text-rose-700',
+  },
+};
+
+const getStatusConfig = (status: ContractStatus) => {
+  return STATUS_CONFIG[status] || STATUS_CONFIG.ACTIVE;
+};
 
 export const ContractsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -41,6 +122,23 @@ export const ContractsPage: React.FC = () => {
     const matchStatus = statusFilter === 'ALL' || c.trangThaiHD === statusFilter;
     return matchSearch && matchStatus;
   });
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      ALL: contracts.length,
+      ACTIVE: 0,
+      PAID: 0,
+      COMPLETED: 0,
+      DRAFT: 0,
+      CANCELLED: 0,
+    };
+    contracts.forEach((c) => {
+      if (counts[c.trangThaiHD] !== undefined) {
+        counts[c.trangThaiHD]++;
+      }
+    });
+    return counts;
+  }, [contracts]);
 
   const handleStatusChange = async (c: Contract, newStatus: ContractStatus) => {
     try {
@@ -115,9 +213,57 @@ export const ContractsPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Contract Count Badge */}
-      <div className="flex items-center justify-between text-xs text-slate-500 px-1">
-        <span>Tổng cộng: <strong className="text-slate-800">{filteredContracts.length}</strong> hợp đồng</span>
+      {/* Status Filter Chips & Visual Legend */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar">
+          <button
+            type="button"
+            onClick={() => setStatusFilter('ALL')}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
+              statusFilter === 'ALL'
+                ? 'bg-slate-900 text-white border-slate-900 shadow-xs font-bold'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border-slate-200/90'
+            }`}
+          >
+            <span>Tất cả</span>
+            <span
+              className={`text-[11px] px-1.5 py-0.2 rounded-full font-bold ${
+                statusFilter === 'ALL' ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600'
+              }`}
+            >
+              {statusCounts.ALL}
+            </span>
+          </button>
+
+          {(['ACTIVE', 'PAID', 'COMPLETED', 'DRAFT', 'CANCELLED'] as ContractStatus[]).map((st) => {
+            const cfg = STATUS_CONFIG[st];
+            const isSelected = statusFilter === st;
+            return (
+              <button
+                key={st}
+                type="button"
+                onClick={() => setStatusFilter(st)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
+                  isSelected ? cfg.chipActive : cfg.chipInactive
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : cfg.dotColor}`} />
+                <span>{cfg.label}</span>
+                <span
+                  className={`text-[11px] px-1.5 py-0.2 rounded-full font-bold ${
+                    isSelected ? cfg.badgeCountActive : cfg.badgeCountInactive
+                  }`}
+                >
+                  {statusCounts[st] || 0}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="text-xs text-slate-500 whitespace-nowrap self-end sm:self-auto px-1">
+          Đang hiển thị: <strong className="text-slate-800">{filteredContracts.length}</strong> / {contracts.length} HĐ
+        </div>
       </div>
 
       {/* DESKTOP TABLE VIEW */}
@@ -126,14 +272,14 @@ export const ContractsPage: React.FC = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-100/90 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider whitespace-nowrap">
-                <th className="py-2.5 px-3">Trạng Thái</th>
+                <th className="py-2.5 px-3 border-l-[4px] border-l-transparent">Trạng Thái</th>
                 <th className="py-2.5 px-3">Số HĐ</th>
                 <th className="py-2.5 px-3">Số L/C</th>
                 <th className="py-2.5 px-3">Ngày Ký</th>
                 <th className="py-2.5 px-3">Hạn Giao Hàng</th>
                 <th className="py-2.5 px-3 min-w-[260px]">Khách Hàng</th>
                 <th className="py-2.5 px-3">Mặt Hàng</th>
-                <th className="py-2.5 px-3">Cảng Đến</th>
+                <th className="py-2.5 px-3">Điều Kiện / Cảng</th>
                 <th className="py-2.5 px-3 text-right">Sản Lượng (MT)</th>
                 <th className="py-2.5 px-3 text-right">Đơn Giá ($)</th>
                 <th className="py-2.5 px-3 text-right">Tổng Trị Giá ($)</th>
@@ -149,33 +295,25 @@ export const ContractsPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredContracts.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-2 px-3 whitespace-nowrap">
-                      <select
-                        value={c.trangThaiHD}
-                        onChange={(e) => handleStatusChange(c, e.target.value as ContractStatus)}
-                        aria-label={`Đổi trạng thái HĐ ${c.soHD}`}
-                        title="Nhấp để đổi nhanh trạng thái"
-                        className={`text-[11px] font-bold px-2 py-0.5 rounded-md border cursor-pointer focus:outline-none transition-all ${
-                          c.trangThaiHD === 'ACTIVE'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                            : c.trangThaiHD === 'PAID'
-                            ? 'bg-teal-50 text-teal-800 border-teal-300 hover:bg-teal-100'
-                            : c.trangThaiHD === 'COMPLETED'
-                            ? 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'
-                            : c.trangThaiHD === 'DRAFT'
-                            ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-                            : 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100'
-                        }`}
-                      >
-                        <option value="ACTIVE">Đang thực hiện</option>
-                        <option value="PAID">Đã thanh toán</option>
-                        <option value="COMPLETED">Hoàn tất</option>
-                        <option value="DRAFT">Bản nháp</option>
-                        <option value="CANCELLED">Đã hủy</option>
-                      </select>
-                    </td>
+                filteredContracts.map((c) => {
+                  const cfg = getStatusConfig(c.trangThaiHD);
+                  return (
+                    <tr key={c.id} className={`transition-colors ${cfg.rowClass}`}>
+                      <td className={`py-2 px-3 whitespace-nowrap border-l-[4px] ${cfg.borderLeftClass}`}>
+                        <select
+                          value={c.trangThaiHD}
+                          onChange={(e) => handleStatusChange(c, e.target.value as ContractStatus)}
+                          aria-label={`Đổi trạng thái HĐ ${c.soHD}`}
+                          title="Nhấp để đổi nhanh trạng thái"
+                          className={`text-[11px] font-bold px-2 py-0.5 rounded-md border cursor-pointer focus:outline-none transition-all ${cfg.selectClass}`}
+                        >
+                          <option value="ACTIVE">Đang thực hiện</option>
+                          <option value="PAID">Đã thanh toán</option>
+                          <option value="COMPLETED">Hoàn tất</option>
+                          <option value="DRAFT">Bản nháp</option>
+                          <option value="CANCELLED">Đã hủy</option>
+                        </select>
+                      </td>
                     <td className="py-2 px-3 font-bold text-slate-900 whitespace-nowrap">{c.soHD}</td>
                     <td className="py-2 px-3 whitespace-nowrap">
                       {c.soLC ? (
@@ -209,33 +347,81 @@ export const ContractsPage: React.FC = () => {
                       <p className="text-[10.5px] text-slate-400 truncate max-w-[140px]">{c.quyCachDongGoi}</p>
                     </td>
                     <td className="py-2 px-3">
-                      {c.danhSachCangDen && c.danhSachCangDen.length > 0 ? (
-                        <div className="flex flex-col gap-0.5 min-w-[150px] max-w-[220px]">
-                          {c.danhSachCangDen.map((p, idx) => (
-                            <div
-                              key={idx}
-                              className="flex items-center justify-between text-[11px] bg-slate-50 border border-slate-200/60 px-1.5 py-0.5 rounded"
-                            >
-                              <span className="font-medium text-slate-700 truncate mr-1" title={p.cangDen}>
-                                {p.cangDen}
-                              </span>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <span className="font-bold text-emerald-700 whitespace-nowrap">
-                                  {formatNumber(p.sanLuongMT)} MT
-                                </span>
-                                {p.soLuongCont ? (
-                                  <span className="text-[9.5px] text-slate-500 font-medium whitespace-nowrap bg-white px-1 rounded border border-slate-200">
-                                    {p.soLuongCont}c
+                      {/* Incoterms 2020 & Port Display */}
+                      {c.dieuKienIncoterms === 'FOB' || (c.cangDen && c.cangDen.toUpperCase().startsWith('FOB')) ? (
+                        <div className="space-y-1 min-w-[140px] max-w-[220px]">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200 leading-tight">
+                              FOB
+                            </span>
+                            <span className="font-bold text-slate-800 text-[11.5px]" title="Cảng xếp hàng (Port of Loading)">
+                              {c.cangXepHang || (c.cangDen ? c.cangDen.replace(/^FOB\s*/i, '') : 'Cát Lái (TP.HCM)')}
+                            </span>
+                          </div>
+                          {c.danhSachCangDen && c.danhSachCangDen.length > 0 ? (
+                            <div className="flex flex-col gap-0.5">
+                              {c.danhSachCangDen.map((p, idx) => (
+                                <div key={idx} className="flex items-center justify-between text-[10.5px] bg-slate-50 border border-slate-200/60 px-1.5 py-0.5 rounded">
+                                  <span className="text-slate-600 truncate mr-1" title={p.cangDen}>
+                                    Đích: {p.cangDen}
                                   </span>
-                                ) : null}
-                              </div>
+                                  <span className="font-bold text-slate-700 whitespace-nowrap">{formatNumber(p.sanLuongMT)} MT</span>
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          ) : (
+                            <span className="text-[10px] text-slate-400 block italic leading-tight">
+                              (Cảng dỡ: Theo bên mua)
+                            </span>
+                          )}
+                        </div>
+                      ) : c.dieuKienIncoterms === 'EXW' ? (
+                        <div className="space-y-0.5 min-w-[120px]">
+                          <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-200 leading-tight">
+                            EXW
+                          </span>
+                          <p className="text-[11.5px] font-semibold text-slate-700">{c.cangXepHang || 'Tại kho'}</p>
                         </div>
                       ) : (
-                        <span className="text-slate-600 font-medium text-[11.5px]">
-                          {c.cangDen || '—'}
-                        </span>
+                        <div className="space-y-1 min-w-[150px] max-w-[220px]">
+                          {c.dieuKienIncoterms && (
+                            <span className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-black leading-tight border ${
+                              c.dieuKienIncoterms === 'CFR' 
+                                ? 'bg-amber-100 text-amber-800 border-amber-200' 
+                                : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                            }`}>
+                              {c.dieuKienIncoterms}
+                            </span>
+                          )}
+                          {c.danhSachCangDen && c.danhSachCangDen.length > 0 ? (
+                            <div className="flex flex-col gap-0.5">
+                              {c.danhSachCangDen.map((p, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-center justify-between text-[11px] bg-slate-50 border border-slate-200/60 px-1.5 py-0.5 rounded"
+                                >
+                                  <span className="font-medium text-slate-700 truncate mr-1" title={p.cangDen}>
+                                    {p.cangDen}
+                                  </span>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <span className="font-bold text-emerald-700 whitespace-nowrap">
+                                      {formatNumber(p.sanLuongMT)} MT
+                                    </span>
+                                    {p.soLuongCont ? (
+                                      <span className="text-[9.5px] text-slate-500 font-medium whitespace-nowrap bg-white px-1 rounded border border-slate-200">
+                                        {p.soLuongCont}c
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-slate-600 font-medium text-[11.5px]">
+                              {c.cangDen || '—'}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="py-2 px-3 text-right font-medium text-slate-800 whitespace-nowrap">
@@ -279,8 +465,9 @@ export const ContractsPage: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
+                );
+              })
+            )}
             </tbody>
           </table>
         </div>
@@ -293,36 +480,28 @@ export const ContractsPage: React.FC = () => {
             Không tìm thấy hợp đồng nào.
           </div>
         ) : (
-          filteredContracts.map((c) => (
-            <div key={c.id} className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Hợp Đồng</span>
-                  <h3 className="text-base font-bold text-slate-900">{c.soHD}</h3>
+          filteredContracts.map((c) => {
+            const cfg = getStatusConfig(c.trangThaiHD);
+            return (
+              <div key={c.id} className={`p-4 rounded-2xl shadow-xs space-y-3 transition-all ${cfg.cardClass}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Hợp Đồng</span>
+                    <h3 className="text-base font-bold text-slate-900">{c.soHD}</h3>
+                  </div>
+                  <select
+                    value={c.trangThaiHD}
+                    onChange={(e) => handleStatusChange(c, e.target.value as ContractStatus)}
+                    aria-label={`Đổi trạng thái HĐ ${c.soHD}`}
+                    className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border cursor-pointer focus:outline-none transition-all ${cfg.selectClass}`}
+                  >
+                    <option value="ACTIVE">Đang thực hiện</option>
+                    <option value="PAID">Đã thanh toán</option>
+                    <option value="COMPLETED">Hoàn tất</option>
+                    <option value="DRAFT">Bản nháp</option>
+                    <option value="CANCELLED">Đã hủy</option>
+                  </select>
                 </div>
-                <select
-                  value={c.trangThaiHD}
-                  onChange={(e) => handleStatusChange(c, e.target.value as ContractStatus)}
-                  aria-label={`Đổi trạng thái HĐ ${c.soHD}`}
-                  className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border cursor-pointer focus:outline-none transition-all ${
-                    c.trangThaiHD === 'ACTIVE'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                      : c.trangThaiHD === 'PAID'
-                      ? 'bg-teal-50 text-teal-800 border-teal-300'
-                      : c.trangThaiHD === 'COMPLETED'
-                      ? 'bg-blue-50 text-blue-700 border-blue-300'
-                      : c.trangThaiHD === 'DRAFT'
-                      ? 'bg-slate-100 text-slate-700 border-slate-300'
-                      : 'bg-rose-50 text-rose-700 border-rose-300'
-                  }`}
-                >
-                  <option value="ACTIVE">Đang thực hiện</option>
-                  <option value="PAID">Đã thanh toán</option>
-                  <option value="COMPLETED">Hoàn tất</option>
-                  <option value="DRAFT">Bản nháp</option>
-                  <option value="CANCELLED">Đã hủy</option>
-                </select>
-              </div>
 
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-slate-800">{c.tenKH}</p>
@@ -366,48 +545,71 @@ export const ContractsPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Destination ports info */}
-              {((c.danhSachCangDen && c.danhSachCangDen.length > 0) || c.cangDen) && (
-                <div className="p-2.5 bg-slate-50 rounded-xl text-xs space-y-1.5 border border-slate-100">
-                  <div className="flex items-center justify-between text-slate-500 font-medium">
-                    <span className="flex items-center gap-1">
-                      <Anchor className="w-3.5 h-3.5 text-blue-500" />
-                      <span>Cảng Đến:</span>
-                    </span>
-                    {c.danhSachCangDen && c.danhSachCangDen.length > 1 && (
-                      <span className="text-[11px] font-semibold text-slate-400">
-                        {c.danhSachCangDen.length} cảng
-                      </span>
+              {/* Incoterms & Ports info */}
+              <div className="p-2.5 bg-slate-50 rounded-xl text-xs space-y-1.5 border border-slate-100">
+                <div className="flex items-center justify-between text-slate-500 font-medium">
+                  <span className="flex items-center gap-1.5">
+                    <Anchor className="w-3.5 h-3.5 text-blue-500" />
+                    <span className="font-bold text-slate-700">Điều kiện & Cảng:</span>
+                  </span>
+                  <span className="px-1.5 py-0.2 rounded text-[10.5px] font-black bg-blue-100 text-blue-800 border border-blue-200">
+                    {c.dieuKienIncoterms || (c.cangDen?.toUpperCase().includes('FOB') ? 'FOB' : 'CIF')}
+                  </span>
+                </div>
+
+                {c.dieuKienIncoterms === 'FOB' || (c.cangDen && c.cangDen.toUpperCase().startsWith('FOB')) ? (
+                  <div className="space-y-1 pt-0.5">
+                    <p className="text-xs text-slate-700">
+                      Cảng bốc: <strong className="text-slate-900">{c.cangXepHang || 'Cát Lái (TP.HCM)'}</strong>
+                    </p>
+                    {c.danhSachCangDen && c.danhSachCangDen.length > 0 ? (
+                      <div className="space-y-1 pt-1">
+                        {c.danhSachCangDen.map((p, idx) => (
+                          <div key={idx} className="flex items-center justify-between bg-white px-2 py-1 rounded border border-slate-200/70 text-xs">
+                            <span className="text-slate-600 truncate mr-2">Đích: {p.cangDen}</span>
+                            <span className="font-bold text-slate-800">{formatNumber(p.sanLuongMT)} MT</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 italic">Cảng dỡ: Theo chỉ định của Người mua</p>
                     )}
                   </div>
-                  {c.danhSachCangDen && c.danhSachCangDen.length > 0 ? (
-                    <div className="space-y-1">
-                      {c.danhSachCangDen.map((p, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between bg-white px-2.5 py-1 rounded-lg border border-slate-200/70 text-xs"
-                        >
-                          <span className="font-medium text-slate-700 truncate mr-2">{p.cangDen}</span>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="font-bold text-emerald-600 whitespace-nowrap">
-                              {formatNumber(p.sanLuongMT)} MT
-                            </span>
-                            {p.soLuongCont ? (
-                              <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap bg-slate-100 px-1.5 py-0.5 rounded">
-                                {p.soLuongCont} cont {p.loaiCont || '20ft'}
+                ) : c.dieuKienIncoterms === 'EXW' ? (
+                  <p className="text-xs text-slate-700">
+                    Địa điểm: <strong className="text-slate-900">{c.cangXepHang || 'Tại kho'}</strong>
+                  </p>
+                ) : (
+                  <div>
+                    {c.danhSachCangDen && c.danhSachCangDen.length > 0 ? (
+                      <div className="space-y-1">
+                        {c.danhSachCangDen.map((p, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between bg-white px-2.5 py-1 rounded-lg border border-slate-200/70 text-xs"
+                          >
+                            <span className="font-medium text-slate-700 truncate mr-2">{p.cangDen}</span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="font-bold text-emerald-600 whitespace-nowrap">
+                                {formatNumber(p.sanLuongMT)} MT
                               </span>
-                            ) : null}
+                              {p.soLuongCont ? (
+                                <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap bg-slate-100 px-1.5 py-0.5 rounded">
+                                  {p.soLuongCont}c {p.loaiCont || '20ft'}
+                                </span>
+                              ) : null}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="font-medium text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200/70">
-                      {c.cangDen}
-                    </p>
-                  )}
-                </div>
-              )}
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="font-medium text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200/70">
+                        {c.cangDen || 'Chưa chỉ định'}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                 <div>
@@ -438,9 +640,10 @@ export const ContractsPage: React.FC = () => {
                 </div>
               </div>
             </div>
-          ))
-        )}
-      </div>
+          );
+        })
+      )}
+    </div>
 
       {/* Contract Form Modal */}
       <ContractFormModal

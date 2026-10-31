@@ -1,5 +1,7 @@
 export type ContractStatus = 'DRAFT' | 'ACTIVE' | 'PAID' | 'COMPLETED' | 'CANCELLED';
 
+export type IncotermRule = 'FOB' | 'CIF' | 'CFR' | 'EXW' | 'FCA' | 'DAP' | 'OTHER';
+
 export interface ContractDestinationPort {
   id?: string;                    // Tùy chọn ID định danh dòng
   cangDen: string;                // Tên cảng đến (vd: "Shanghai (SHA)", "Qingdao (TAO)")
@@ -21,7 +23,9 @@ export interface Contract {
   dungSaiPercent: number;         // Dung sai (+/- %) mặc định 5%
   donGiaUSD: number;              // Đơn giá xuất khẩu (USD/MT)
   tongGiaTriUSD: number;          // Thành tiền: sanLuongKy * donGiaUSD
-  danhSachCangDen?: ContractDestinationPort[]; // Cho phép 1 hợp đồng có nhiều cảng đến kèm sản lượng từng cảng
+  dieuKienIncoterms?: IncotermRule; // Điều kiện Incoterms 2020: FOB, CIF, CFR, EXW...
+  cangXepHang?: string;           // Cảng bốc hàng / Cảng xếp (Port of Loading - quan trọng cho FOB: vd Cát Lái, Cái Mép)
+  danhSachCangDen?: ContractDestinationPort[]; // Cho phép 1 hợp đồng có nhiều cảng đến (bắt buộc cho CIF/CFR, tuỳ chọn cho FOB)
   cangDen?: string;               // Chuỗi tóm tắt cảng đến (backward-compatible)
   hinhThucTT: string;             // L/C, T/T 30 - 70, T/T 100% trước...
   nganHangLC?: string;            // Ngân hàng tiếp nhận L/C (Vietcombank, MB...)

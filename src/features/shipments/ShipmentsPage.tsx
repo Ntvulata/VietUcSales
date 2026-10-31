@@ -174,6 +174,9 @@ export const ShipmentsPage: React.FC = () => {
     const info = getContractRemainingInfo(newSoHD, editShipment?.id);
     const c = info.contract;
     if (!editShipment) {
+      if (c?.cangXepHang) {
+        setCangDiSelect(c.cangXepHang);
+      }
       if (c?.danhSachCangDen && c.danhSachCangDen.length > 0) {
         const portWithRemaining = c.danhSachCangDen.find((p) => {
           const pInfo = getPortRemainingInfo(newSoHD, p.cangDen);
@@ -187,6 +190,8 @@ export const ShipmentsPage: React.FC = () => {
           setSoLuongCont(pInfo.conLaiCont);
           return;
         }
+      } else if (c?.dieuKienIncoterms === 'FOB' || c?.cangDen?.toUpperCase().includes('FOB')) {
+        setCangDenSelect('Theo chỉ định người mua (FOB)');
       }
       setSanLuongThucXuat(info.conLaiMT);
       setSoLuongCont(info.conLaiCont);
@@ -224,7 +229,7 @@ export const ShipmentsPage: React.FC = () => {
     setLoaiCont('20ft');
     
     // Port dropdowns (strictly from Master Data)
-    setCangDiSelect(loadingPortsList[0] || 'Cát Lái (TP.HCM)');
+    setCangDiSelect(c?.cangXepHang || loadingPortsList[0] || 'Cát Lái (TP.HCM)');
 
     if (c?.danhSachCangDen && c.danhSachCangDen.length > 0) {
       const portWithRemaining = c.danhSachCangDen.find((p) => {
@@ -242,7 +247,10 @@ export const ShipmentsPage: React.FC = () => {
         setSoLuongCont(info.conLaiCont > 0 ? info.conLaiCont : 38);
       }
     } else {
-      setCangDenSelect(dischargePortsList[0] || 'Xiamen (Hạ Môn)');
+      const defaultPort = (c?.dieuKienIncoterms === 'FOB' || c?.cangDen?.toUpperCase().includes('FOB'))
+        ? 'Theo chỉ định người mua (FOB)'
+        : (dischargePortsList[0] || 'Xiamen (Hạ Môn)');
+      setCangDenSelect(defaultPort);
       setSanLuongThucXuat(info.conLaiMT > 0 ? info.conLaiMT : 750);
       setSoLuongCont(info.conLaiCont > 0 ? info.conLaiCont : 38);
     }
@@ -736,6 +744,14 @@ export const ShipmentsPage: React.FC = () => {
                 required
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none min-h-[44px] bg-white font-medium"
               >
+                {(remainingInfo.contract?.dieuKienIncoterms === 'FOB' || (!remainingInfo.contract?.danhSachCangDen || remainingInfo.contract.danhSachCangDen.length === 0)) && (
+                  <optgroup label="Xuất khẩu FOB">
+                    <option value="Theo chỉ định người mua (FOB)">
+                      Theo chỉ định người mua (FOB)
+                    </option>
+                  </optgroup>
+                )}
+
                 {remainingInfo.contract?.danhSachCangDen && remainingInfo.contract.danhSachCangDen.length > 0 && (
                   <optgroup label={`⭐ Cảng theo hợp đồng ${soHD}`}>
                     {remainingInfo.contract.danhSachCangDen.map((p) => {

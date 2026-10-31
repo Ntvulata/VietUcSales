@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Anchor, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Anchor, CheckCircle2, AlertCircle, Ship, ShieldCheck, Info } from 'lucide-react';
 import { Modal } from '../../components/common/Modal';
 import { saveContract } from './contractsService';
 import { subscribeToBankAccounts, INITIAL_BANK_ACCOUNTS } from '../master-data/masterDataService';
 import { formatNumber, formatShortBankName } from '../../utils/formatters';
-import type { Contract, Customer, Product, Port, ContractDestinationPort, BankAccount } from '../../types';
+import type { Contract, Customer, Product, Port, ContractDestinationPort, BankAccount, IncotermRule } from '../../types';
 
 interface Props {
   isOpen: boolean;
@@ -43,6 +43,15 @@ const calcDefaultContCount = (mt: number, loaiCont: string = '20ft', packaging: 
   return Math.round(mt / mtPerCont);
 };
 
+const FALLBACK_LOADING_PORTS: Port[] = [
+  { id: 'VN_SGN', maCang: 'VN_SGN', tenCang: 'Cát Lái (TP.HCM)', phanLoai: 'Cang_Boc', quocGia: 'Việt Nam' },
+  { id: 'VN_TCIT', maCang: 'VN_TCIT', tenCang: 'Cái Mép (Vũng Tàu)', phanLoai: 'Cang_Boc', quocGia: 'Việt Nam' },
+  { id: 'VN_HPH', maCang: 'VN_HPH', tenCang: 'Tân Vũ (Hải Phòng)', phanLoai: 'Cang_Boc', quocGia: 'Việt Nam' },
+  { id: 'VN_DAD', maCang: 'VN_DAD', tenCang: 'Đà Nẵng', phanLoai: 'Cang_Boc', quocGia: 'Việt Nam' },
+  { id: 'VN_UIH', maCang: 'VN_UIH', tenCang: 'Quy Nhơn', phanLoai: 'Cang_Boc', quocGia: 'Việt Nam' },
+  { id: 'VN_SPITC', maCang: 'VN_SPITC', tenCang: 'SP-ITC (TP.HCM)', phanLoai: 'Cang_Boc', quocGia: 'Việt Nam' },
+];
+
 const FALLBACK_DISCHARGE_PORTS: Port[] = [
   { id: 'CN_XMN', maCang: 'CN_XMN', tenCang: 'Xiamen (Hạ Môn)', phanLoai: 'Cang_Do', quocGia: 'Trung Quốc' },
   { id: 'CN_TAO', maCang: 'CN_TAO', tenCang: 'Qingdao (Thanh Đảo)', phanLoai: 'Cang_Do', quocGia: 'Trung Quốc' },
@@ -74,6 +83,9 @@ export const ContractFormModal: React.FC<Props> = ({
   const [sanLuongKy, setSanLuongKy] = useState<number>(1000);
   const [dungSaiPercent, setDungSaiPercent] = useState<number>(5);
   const [donGiaUSD, setDonGiaUSD] = useState<number>(480);
+  const [dieuKienIncoterms, setDieuKienIncoterms] = useState<IncotermRule>('FOB');
+  const [cangXepHang, setCangXepHang] = useState('Cát Lái (TP.HCM)');
+  const [coChiDinhCangDenFOB, setCoChiDinhCangDenFOB] = useState(false);
   const [hinhThucTT, setHinhThucTT] = useState('L/C');
   const [nganHangLC, setNganHangLC] = useState('Vietcombank');
   const [soLC, setSoLC] = useState('');
@@ -92,7 +104,11 @@ export const ContractFormModal: React.FC<Props> = ({
     return () => { if (unsub) unsub(); };
   }, []);
 
-  // Master Data discharge ports
+  // Master Data loading ports (Cảng bốc / xếp hàng tại VN)
+  const masterLoadingPorts = ports.filter((p) => p.phanLoai === 'Cang_Boc');
+  const availableLoadingPorts: Port[] = masterLoadingPorts.length > 0 ? masterLoadingPorts : FALLBACK_LOADING_PORTS;
+
+  // Master Data discharge ports (Cảng dỡ hàng / cảng đến)
   const masterDischargePorts = ports.filter((p) => p.phanLoai === 'Cang_Do');
   const availablePorts: Port[] = masterDischargePorts.length > 0 ? masterDischargePorts : FALLBACK_DISCHARGE_PORTS;
 
@@ -119,6 +135,21 @@ export const ContractFormModal: React.FC<Props> = ({
       setDungSaiPercent(editContract.dungSaiPercent);
       setDonGiaUSD(editContract.donGiaUSD);
       setHinhThucTT(editContract.hinhThucTT);
+
+      // Infer or set Incoterms 2020
+      const inferredIncoterm: IncotermRule =
+        editContract.dieuKienIncoterms ||
+        (editContract.cangDen?.toUpperCase().includes('FOB')
+          ? 'FOB'
+          : editContract.danhSachCangDen && editContract.danhSachCangDen.length > 0
+          ? 'CIF'
+          : 'FOB');
+      setDieuKienIncoterms(inferredIncoterm);
+      setCangXepHang(editContract.cangXepHang || availableLoadingPorts[0]?.tenCang || 'Cát Lái (TP.HCM)');
+
+      const hasPorts = Boolean(editContract.danhSachCangDen && editContract.danhSachCangDen.length > 0);
+      setCoChiDinhCangDenFOB(hasPorts);
+
       if (editContract.nganHangLC) {
         const rawBank = editContract.nganHangLC;
         const shortName = formatShortBankName(rawBank);
@@ -147,7 +178,7 @@ export const ContractFormModal: React.FC<Props> = ({
             ghiChu: p.ghiChu || '',
           }))
         );
-      } else if (editContract.cangDen) {
+      } else if (editContract.cangDen && !editContract.cangDen.toUpperCase().startsWith('FOB')) {
         const defaultCont = calcDefaultContCount(editContract.sanLuongKy, '20ft', editContract.quyCachDongGoi);
         setDanhSachCang([
           {
@@ -160,17 +191,7 @@ export const ContractFormModal: React.FC<Props> = ({
           }
         ]);
       } else {
-        const defaultCont = calcDefaultContCount(editContract.sanLuongKy, '20ft', editContract.quyCachDongGoi);
-        setDanhSachCang([
-          {
-            id: `port-1`,
-            cangDen: availablePorts[0]?.tenCang || 'Xiamen (Hạ Môn)',
-            sanLuongMT: editContract.sanLuongKy,
-            soLuongCont: defaultCont,
-            loaiCont: '20ft',
-            ghiChu: '',
-          }
-        ]);
+        setDanhSachCang([]);
       }
     } else {
       setSoHD(`HD-${new Date().getFullYear()}-X0${Math.floor(Math.random() * 90 + 10)}`);
@@ -180,16 +201,10 @@ export const ContractFormModal: React.FC<Props> = ({
       setNganHangLC('Vietcombank');
       setIsCustomBank(false);
       setSoLC('');
-      setDanhSachCang([
-        {
-          id: `port-1`,
-          cangDen: availablePorts[0]?.tenCang || 'Xiamen (Hạ Môn)',
-          sanLuongMT: 1000,
-          soLuongCont: 54,
-          loaiCont: '20ft',
-          ghiChu: '',
-        }
-      ]);
+      setDieuKienIncoterms('FOB');
+      setCangXepHang(availableLoadingPorts[0]?.tenCang || 'Cát Lái (TP.HCM)');
+      setCoChiDinhCangDenFOB(false);
+      setDanhSachCang([]);
     }
   }, [editContract, isOpen]);
 
@@ -243,7 +258,12 @@ export const ContractFormModal: React.FC<Props> = ({
 
   const handleRemovePortRow = (id: string) => {
     if (danhSachCang.length <= 1) {
-      alert('Hợp đồng cần có ít nhất 1 cảng đến!');
+      if (dieuKienIncoterms === 'FOB') {
+        setCoChiDinhCangDenFOB(false);
+        setDanhSachCang([]);
+        return;
+      }
+      alert(`Theo Incoterms 2020 (${dieuKienIncoterms}), hợp đồng cần có ít nhất 1 cảng đến!`);
       return;
     }
     setDanhSachCang(danhSachCang.filter(p => p.id !== id));
@@ -293,22 +313,46 @@ export const ContractFormModal: React.FC<Props> = ({
       return;
     }
 
-    // Process ports strictly from Master Data
-    const cleanedPorts: ContractDestinationPort[] = danhSachCang.map((p) => ({
-      cangDen: p.cangDen.trim(),
-      sanLuongMT: Number(p.sanLuongMT) || 0,
-      soLuongCont: Number(p.soLuongCont) || calcDefaultContCount(Number(p.sanLuongMT), p.loaiCont, quyCachDongGoi),
-      loaiCont: p.loaiCont || '20ft',
-      ghiChu: p.ghiChu?.trim() || '',
-    })).filter(p => p.cangDen && p.sanLuongMT > 0);
+    // Process destination ports based on Incoterms 2020
+    let cleanedPorts: ContractDestinationPort[] = [];
+    let summaryCangDen = '';
 
-    if (cleanedPorts.length === 0) {
-      alert('Vui lòng chọn ít nhất 1 cảng đến với sản lượng > 0!');
-      return;
+    if (dieuKienIncoterms === 'FOB') {
+      if (coChiDinhCangDenFOB) {
+        cleanedPorts = danhSachCang.map((p) => ({
+          cangDen: p.cangDen.trim(),
+          sanLuongMT: Number(p.sanLuongMT) || 0,
+          soLuongCont: Number(p.soLuongCont) || calcDefaultContCount(Number(p.sanLuongMT), p.loaiCont, quyCachDongGoi),
+          loaiCont: p.loaiCont || '20ft',
+          ghiChu: p.ghiChu?.trim() || '',
+        })).filter(p => p.cangDen && p.sanLuongMT > 0);
+      }
+
+      if (cleanedPorts.length > 0) {
+        summaryCangDen = `FOB ${cangXepHang} → ` + cleanedPorts.map(p => `${p.cangDen}: ${formatNumber(p.sanLuongMT)} MT`).join(' • ');
+      } else {
+        summaryCangDen = `FOB ${cangXepHang}`;
+      }
+    } else if (dieuKienIncoterms === 'EXW') {
+      summaryCangDen = `EXW (${cangXepHang || 'Tại kho'})`;
+    } else {
+      // CIF, CFR, FCA, DAP, OTHER
+      cleanedPorts = danhSachCang.map((p) => ({
+        cangDen: p.cangDen.trim(),
+        sanLuongMT: Number(p.sanLuongMT) || 0,
+        soLuongCont: Number(p.soLuongCont) || calcDefaultContCount(Number(p.sanLuongMT), p.loaiCont, quyCachDongGoi),
+        loaiCont: p.loaiCont || '20ft',
+        ghiChu: p.ghiChu?.trim() || '',
+      })).filter(p => p.cangDen && p.sanLuongMT > 0);
+
+      if (cleanedPorts.length === 0) {
+        alert(`Theo Incoterms 2020 (${dieuKienIncoterms}), vui lòng chọn ít nhất 1 cảng đến với sản lượng > 0!`);
+        return;
+      }
+      summaryCangDen = `${dieuKienIncoterms}: ` + cleanedPorts.map(p => `${p.cangDen}: ${formatNumber(p.sanLuongMT)} MT (${p.soLuongCont}c ${p.loaiCont || '20ft'})`).join(' • ');
     }
 
     const tongGiaTriUSD = Number(sanLuongKy) * Number(donGiaUSD);
-    const summaryCangDen = cleanedPorts.map(p => `${p.cangDen}: ${formatNumber(p.sanLuongMT)} MT (${p.soLuongCont}c ${p.loaiCont || '20ft'})`).join(' • ');
 
     setSaving(true);
     try {
@@ -323,6 +367,8 @@ export const ContractFormModal: React.FC<Props> = ({
         dungSaiPercent: Number(dungSaiPercent),
         donGiaUSD: Number(donGiaUSD),
         tongGiaTriUSD,
+        dieuKienIncoterms,
+        cangXepHang: (dieuKienIncoterms === 'FOB' || dieuKienIncoterms === 'EXW' || dieuKienIncoterms === 'FCA') ? cangXepHang : undefined,
         danhSachCangDen: cleanedPorts,
         cangDen: summaryCangDen,
         hinhThucTT,
@@ -506,180 +552,316 @@ export const ContractFormModal: React.FC<Props> = ({
           <span className="text-base font-extrabold">${calcTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
         </div>
 
-        {/* --- DYNAMIC DESTINATION PORTS SECTION --- */}
-        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Anchor className="w-4 h-4 text-sky-600" />
-              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-                Cảng Đến
-              </h4>
+        {/* --- INCOTERMS 2020 & PORT OF LOADING --- */}
+        <div className="p-4 bg-slate-50 border border-slate-200/90 rounded-2xl space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                <span>Điều Kiện Giao Hàng (Incoterms 2020) *</span>
+              </label>
+              <select
+                value={dieuKienIncoterms}
+                onChange={(e) => {
+                  const newTerm = e.target.value as IncotermRule;
+                  setDieuKienIncoterms(newTerm);
+                  if (newTerm === 'FOB' || newTerm === 'EXW') {
+                    setCoChiDinhCangDenFOB(false);
+                    setDanhSachCang([]);
+                  } else if (newTerm === 'CIF' || newTerm === 'CFR') {
+                    setCoChiDinhCangDenFOB(true);
+                    if (danhSachCang.length === 0) {
+                      setDanhSachCang([{
+                        id: `port-${Date.now()}`,
+                        cangDen: availablePorts[0]?.tenCang || 'Xiamen (Hạ Môn)',
+                        sanLuongMT: Number(sanLuongKy) || 1000,
+                        soLuongCont: calcDefaultContCount(Number(sanLuongKy) || 1000, '20ft', quyCachDongGoi),
+                        loaiCont: '20ft',
+                        ghiChu: '',
+                      }]);
+                    }
+                  }
+                }}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none min-h-[44px] bg-white font-bold text-slate-800"
+              >
+                <option value="FOB">FOB - Giao hàng lên tàu (Free On Board - Phổ biến nhất)</option>
+                <option value="CIF">CIF - Tiền hàng, Bảo hiểm & Cước biển (Cost, Insurance & Freight)</option>
+                <option value="CFR">CFR / CNF - Tiền hàng & Cước biển (Cost and Freight)</option>
+                <option value="EXW">EXW - Giao tại xưởng / kho (Ex Works)</option>
+                <option value="FCA">FCA - Giao cho người chuyên chở (Free Carrier)</option>
+                <option value="DAP">DAP - Giao tại nơi đến (Delivered at Place)</option>
+              </select>
             </div>
-            <button
-              type="button"
-              onClick={handleAddPortRow}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition-transform active:scale-95 cursor-pointer min-h-[36px]"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Thêm Cảng Đến</span>
-            </button>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                <Ship className="w-3.5 h-3.5 text-emerald-600" />
+                <span>
+                  {dieuKienIncoterms === 'EXW'
+                    ? 'Địa Điểm Giao Hàng / Kho Xuất *'
+                    : 'Cảng Xếp Hàng / Cảng Bốc (Port of Loading) *'}
+                </span>
+              </label>
+              {dieuKienIncoterms === 'EXW' ? (
+                <input
+                  type="text"
+                  value={cangXepHang}
+                  onChange={(e) => setCangXepHang(e.target.value)}
+                  placeholder="VD: Kho Tây Ninh / Nhà máy Bình Phước"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none min-h-[44px] bg-white font-medium"
+                />
+              ) : (
+                <select
+                  value={cangXepHang}
+                  onChange={(e) => setCangXepHang(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none min-h-[44px] bg-white font-bold text-emerald-800"
+                >
+                  {availableLoadingPorts.map((lp) => (
+                    <option key={lp.id || lp.maCang || lp.tenCang} value={lp.tenCang}>
+                      🇻🇳 {lp.tenCang}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
           </div>
 
-          {/* Destination Port Rows */}
-          <div className="space-y-2.5">
-            {danhSachCang.map((row, idx) => (
-              <div 
-                key={row.id} 
-                className="p-3 bg-white rounded-xl border border-slate-200 shadow-xs space-y-2"
-              >
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span className="font-semibold text-slate-700">Cảng #{idx + 1}</span>
-                  {danhSachCang.length > 1 && (
+          {/* Contextual Incoterms helper notice */}
+          {dieuKienIncoterms === 'FOB' && !coChiDinhCangDenFOB && (
+            <div className="p-3.5 bg-blue-50/80 border border-blue-200/80 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span className="text-xs font-bold text-blue-900">
+                    Quy định Incoterms 2020: FOB ({cangXepHang})
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCoChiDinhCangDenFOB(true);
+                    if (danhSachCang.length === 0) {
+                      setDanhSachCang([{
+                        id: `port-${Date.now()}`,
+                        cangDen: availablePorts[0]?.tenCang || 'Xiamen (Hạ Môn)',
+                        sanLuongMT: Number(sanLuongKy) || 1000,
+                        soLuongCont: calcDefaultContCount(Number(sanLuongKy) || 1000, '20ft', quyCachDongGoi),
+                        loaiCont: '20ft',
+                        ghiChu: '',
+                      }]);
+                    }
+                  }}
+                  className="text-xs font-bold text-blue-700 hover:text-blue-900 bg-white hover:bg-blue-100/60 px-2.5 py-1 rounded-lg border border-blue-200 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Thêm cảng đến dự kiến (Tùy chọn)</span>
+                </button>
+              </div>
+              <p className="text-[11.5px] text-blue-800/90 leading-relaxed">
+                Người bán (Việt - Úc) hoàn thành nghĩa vụ khi hàng đã xếp lên tàu tại <strong>{cangXepHang}</strong>. Bên mua tự thu xếp tàu, chịu cước biển và rủi ro từ cảng bốc, vì vậy <strong>không bắt buộc cảng đến</strong>. Hợp đồng ghi nhận: <strong className="text-blue-950">FOB {cangXepHang}</strong>.
+              </p>
+            </div>
+          )}
+
+          {dieuKienIncoterms === 'EXW' && (
+            <div className="p-3 bg-purple-50/80 border border-purple-200/80 rounded-xl flex items-center gap-2 text-xs text-purple-900">
+              <Info className="w-4 h-4 text-purple-600 shrink-0" />
+              <span>
+                Theo Incoterms 2020 (EXW), giao hàng tại <strong>{cangXepHang}</strong>. Bên mua tự lo thủ tục thông quan và vận chuyển, không chỉ định cảng dỡ.
+              </span>
+            </div>
+          )}
+
+          {/* --- DYNAMIC DESTINATION PORTS TABLE (Required for CIF/CFR, Optional for FOB) --- */}
+          {(dieuKienIncoterms === 'CIF' || dieuKienIncoterms === 'CFR' || coChiDinhCangDenFOB) && (
+            <div className="space-y-3 pt-1">
+              <div className="flex items-center justify-between border-t border-slate-200 pt-3">
+                <div className="flex items-center gap-2">
+                  <Anchor className="w-4 h-4 text-sky-600" />
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                    {dieuKienIncoterms === 'FOB'
+                      ? 'Cảng Đến Dự Kiến (Chỉ Định Thêm Theo Khách Hàng)'
+                      : `Cảng Đến & Phân Bổ Container (Incoterms: ${dieuKienIncoterms}) *`}
+                  </h4>
+                </div>
+                <div className="flex items-center gap-2">
+                  {dieuKienIncoterms === 'FOB' && (
                     <button
                       type="button"
-                      onClick={() => handleRemovePortRow(row.id)}
-                      className="text-rose-500 hover:text-rose-700 p-1 flex items-center gap-1 text-xs cursor-pointer"
+                      onClick={() => {
+                        setCoChiDinhCangDenFOB(false);
+                        setDanhSachCang([]);
+                      }}
+                      className="px-2.5 py-1 rounded-xl text-xs text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors cursor-pointer"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Xóa cảng</span>
+                      Bỏ cảng đến (Về FOB chuẩn)
                     </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleAddPortRow}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition-transform active:scale-95 cursor-pointer min-h-[36px]"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Thêm Cảng Đến</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Destination Port Rows */}
+              <div className="space-y-2.5">
+                {danhSachCang.map((row, idx) => (
+                  <div 
+                    key={row.id} 
+                    className="p-3 bg-white rounded-xl border border-slate-200 shadow-xs space-y-2"
+                  >
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <span className="font-semibold text-slate-700">Cảng #{idx + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePortRow(row.id)}
+                        className="text-rose-500 hover:text-rose-700 p-1 flex items-center gap-1 text-xs cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Xóa cảng</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                      {/* Select Port from Master Data */}
+                      <div className="sm:col-span-4">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                          Cảng Đến (Từ Danh Mục) *
+                        </label>
+                        <select
+                          value={row.cangDen}
+                          onChange={(e) => handlePortChange(row.id, 'cangDen', e.target.value)}
+                          required
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none min-h-[40px] bg-white font-medium"
+                        >
+                          {row.cangDen && !availablePorts.some(p => p.tenCang === row.cangDen) && (
+                            <optgroup label="Cảng trong HĐ cũ">
+                              <option value={row.cangDen}>{row.cangDen}</option>
+                            </optgroup>
+                          )}
+
+                          {countries.map((country) => (
+                            <optgroup key={country} label={`Cảng ${country}`}>
+                              {availablePorts
+                                .filter((p) => (p.quocGia || 'Khác') === country)
+                                .map((p) => (
+                                  <option key={p.id || p.maCang || p.tenCang} value={p.tenCang}>
+                                    {p.tenCang}
+                                  </option>
+                                ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Quantity for this port */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Sản Lượng (MT) *</label>
+                        <input
+                          type="number"
+                          step="any"
+                          inputMode="decimal"
+                          required
+                          value={row.sanLuongMT}
+                          onChange={(e) => handlePortChange(row.id, 'sanLuongMT', Number(e.target.value))}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none min-h-[40px] font-bold text-slate-900"
+                        />
+                      </div>
+
+                      {/* Loại Cont */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Loại Cont</label>
+                        <select
+                          value={row.loaiCont}
+                          onChange={(e) => handlePortChange(row.id, 'loaiCont', e.target.value)}
+                          className="w-full px-2.5 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none min-h-[40px] bg-white font-medium"
+                        >
+                          <option value="20ft">20ft (Chuẩn)</option>
+                          <option value="40HC">40HC (Cao)</option>
+                          <option value="40GP">40GP (Thường)</option>
+                        </select>
+                      </div>
+
+                      {/* Số Cont */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Số Cont</label>
+                        <input
+                          type="number"
+                          step="1"
+                          min="1"
+                          inputMode="numeric"
+                          required
+                          value={row.soLuongCont}
+                          onChange={(e) => handlePortChange(row.id, 'soLuongCont', Number(e.target.value))}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none min-h-[40px] font-bold text-sky-800"
+                        />
+                      </div>
+
+                      {/* Port notes */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Ghi Chú Cảng</label>
+                        <input
+                          type="text"
+                          value={row.ghiChu}
+                          onChange={(e) => handlePortChange(row.id, 'ghiChu', e.target.value)}
+                          placeholder="VD: Đợt 1, giao cảng..."
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none min-h-[40px]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Allocation balance status */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-slate-200 text-xs">
+                <div className="flex items-center gap-2">
+                  {chenhLechSanLuong === 0 ? (
+                    <div className="flex items-center gap-1.5 text-emerald-700 font-bold">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Đã phân bổ đủ {formatNumber(tongPhanBoCang)} / {formatNumber(sanLuongKy)} MT ({tongContCang} cont - {danhSachCang.length} cảng)</span>
+                    </div>
+                  ) : chenhLechSanLuong > 0 ? (
+                    <div className="flex items-center gap-1.5 text-amber-700 font-semibold">
+                      <AlertCircle className="w-4 h-4 text-amber-600" />
+                      <span>Đã phân bổ {formatNumber(tongPhanBoCang)} MT ({tongContCang} cont), còn thiếu {formatNumber(chenhLechSanLuong)} MT</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-rose-700 font-semibold">
+                      <AlertCircle className="w-4 h-4 text-rose-600" />
+                      <span>Tổng các cảng ({formatNumber(tongPhanBoCang)} MT - {tongContCang} cont) vượt quá HĐ ({formatNumber(sanLuongKy)} MT)</span>
+                    </div>
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-                  {/* Select Port from Master Data */}
-                  <div className="sm:col-span-4">
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
-                      Cảng Đến (Từ Danh Mục) *
-                    </label>
-                    <select
-                      value={row.cangDen}
-                      onChange={(e) => handlePortChange(row.id, 'cangDen', e.target.value)}
-                      required
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none min-h-[40px] bg-white font-medium"
-                    >
-                      {/* If existing contract has a port not currently in availablePorts, preserve it */}
-                      {row.cangDen && !availablePorts.some(p => p.tenCang === row.cangDen) && (
-                        <optgroup label="Cảng trong HĐ cũ">
-                          <option value={row.cangDen}>{row.cangDen}</option>
-                        </optgroup>
-                      )}
-
-                      {countries.map((country) => (
-                        <optgroup key={country} label={`Cảng ${country}`}>
-                          {availablePorts
-                            .filter((p) => (p.quocGia || 'Khác') === country)
-                            .map((p) => (
-                              <option key={p.id || p.maCang || p.tenCang} value={p.tenCang}>
-                                {p.tenCang}
-                              </option>
-                            ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Quantity for this port */}
-                  <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Sản Lượng (MT) *</label>
-                    <input
-                      type="number"
-                      step="any"
-                      inputMode="decimal"
-                      required
-                      value={row.sanLuongMT}
-                      onChange={(e) => handlePortChange(row.id, 'sanLuongMT', Number(e.target.value))}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none min-h-[40px] font-bold text-slate-900"
-                    />
-                  </div>
-
-                  {/* Loại Cont */}
-                  <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Loại Cont</label>
-                    <select
-                      value={row.loaiCont}
-                      onChange={(e) => handlePortChange(row.id, 'loaiCont', e.target.value)}
-                      className="w-full px-2.5 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none min-h-[40px] bg-white font-medium"
-                    >
-                      <option value="20ft">20ft (Chuẩn)</option>
-                      <option value="40HC">40HC (Cao)</option>
-                      <option value="40GP">40GP (Thường)</option>
-                    </select>
-                  </div>
-
-                  {/* Số Cont */}
-                  <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Số Cont</label>
-                    <input
-                      type="number"
-                      step="1"
-                      min="1"
-                      inputMode="numeric"
-                      required
-                      value={row.soLuongCont}
-                      onChange={(e) => handlePortChange(row.id, 'soLuongCont', Number(e.target.value))}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none min-h-[40px] font-bold text-sky-800"
-                    />
-                  </div>
-
-                  {/* Port notes */}
-                  <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Ghi Chú Cảng</label>
-                    <input
-                      type="text"
-                      value={row.ghiChu}
-                      onChange={(e) => handlePortChange(row.id, 'ghiChu', e.target.value)}
-                      placeholder="VD: Giao CIF, đợt 1..."
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none min-h-[40px]"
-                    />
-                  </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {chenhLechSanLuong !== 0 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleDistributeRemaining}
+                        className="px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-800 text-[11px] font-bold border border-sky-200 transition-colors cursor-pointer"
+                      >
+                        Phân bổ phần còn lại
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSyncSanLuongKy}
+                        className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold border border-slate-200 transition-colors cursor-pointer"
+                      >
+                        Cập nhật HĐ = Tổng cảng
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
-
-          {/* Allocation balance status */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-slate-200 text-xs">
-            <div className="flex items-center gap-2">
-              {chenhLechSanLuong === 0 ? (
-                <div className="flex items-center gap-1.5 text-emerald-700 font-bold">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Đã phân bổ đủ {formatNumber(tongPhanBoCang)} / {formatNumber(sanLuongKy)} MT ({tongContCang} cont - {danhSachCang.length} cảng)</span>
-                </div>
-              ) : chenhLechSanLuong > 0 ? (
-                <div className="flex items-center gap-1.5 text-amber-700 font-semibold">
-                  <AlertCircle className="w-4 h-4 text-amber-600" />
-                  <span>Đã phân bổ {formatNumber(tongPhanBoCang)} MT ({tongContCang} cont), còn thiếu {formatNumber(chenhLechSanLuong)} MT chưa gán cảng</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 text-rose-700 font-semibold">
-                  <AlertCircle className="w-4 h-4 text-rose-600" />
-                  <span>Tổng các cảng ({formatNumber(tongPhanBoCang)} MT - {tongContCang} cont) vượt quá HĐ ({formatNumber(sanLuongKy)} MT)</span>
-                </div>
-              )}
             </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              {chenhLechSanLuong !== 0 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleDistributeRemaining}
-                    className="px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-800 text-[11px] font-bold border border-sky-200 transition-colors cursor-pointer"
-                  >
-                    Phân bổ phần còn lại
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSyncSanLuongKy}
-                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold border border-slate-200 transition-colors cursor-pointer"
-                  >
-                    Cập nhật HĐ = Tổng cảng
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Thanh toán & Hạn giao */}

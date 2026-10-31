@@ -25,18 +25,19 @@ export const Badge: React.FC<BadgeProps> = ({ status, variant, children }) => {
       case 'ACTIVE':
       case 'DA_LEN_TAU':
       case 'DA_THONG_QUAN':
-      case 'DA_THANH_TOAN':
+        return 'bg-emerald-50 text-emerald-800 border-emerald-300';
       case 'PAID':
+      case 'DA_THANH_TOAN':
+        return 'bg-teal-50 text-teal-800 border-teal-300';
+      case 'COMPLETED':
       case 'HOAN_TAT':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'DA_DEN_CANG':
+      case 'LOGISTICS':
+        return 'bg-sky-50 text-sky-800 border-sky-300';
       case 'DRAFT':
       case 'DANG_DONG_HANG':
       case 'CHUA_THANH_TOAN':
-        return 'bg-amber-50 text-amber-700 border-amber-200';
-      case 'COMPLETED':
-      case 'DA_DEN_CANG':
-      case 'LOGISTICS':
-        return 'bg-sky-50 text-sky-700 border-sky-200';
+        return 'bg-amber-50 text-amber-800 border-amber-300';
       case 'BOC_XEP':
         return 'bg-orange-50 text-orange-700 border-orange-200';
       case 'MOI_GIOI':
@@ -50,7 +51,7 @@ export const Badge: React.FC<BadgeProps> = ({ status, variant, children }) => {
       case 'XE_LE':
         return 'bg-amber-50 text-amber-700 border-amber-200';
       case 'CANCELLED':
-        return 'bg-rose-50 text-rose-700 border-rose-200';
+        return 'bg-rose-50 text-rose-700 border-rose-300';
       default:
         return 'bg-slate-100 text-slate-700 border-slate-200';
     }

@@ -530,6 +530,18 @@ export const ContractDetailReport: React.FC<Props> = ({
               <span className="font-bold text-slate-900">{c.hinhThucTT}</span>
             </div>
 
+            <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-xl">
+              <span className="text-blue-700 block mb-0.5 font-semibold text-[11px]">Điều Kiện Giao Hàng (Incoterms 2020):</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="px-1.5 py-0.2 rounded text-[11px] font-black bg-blue-600 text-white">
+                  {c.dieuKienIncoterms || (c.cangDen?.toUpperCase().includes('FOB') ? 'FOB' : 'CIF')}
+                </span>
+                <span className="font-bold text-blue-900 text-xs">
+                  {c.cangXepHang ? `Cảng bốc: ${c.cangXepHang}` : (c.cangDen || 'Chưa chỉ định')}
+                </span>
+              </div>
+            </div>
+
             <div className="p-3 bg-slate-50 rounded-xl">
               <span className="text-slate-400 block mb-0.5">Số L/C Đã Mở:</span>
               <span className="font-mono font-bold text-sky-800">
@@ -599,6 +611,16 @@ export const ContractDetailReport: React.FC<Props> = ({
                     </tr>
                   </tbody>
                 </table>
+              </div>
+            ) : (c.dieuKienIncoterms === 'FOB' || c.cangDen?.toUpperCase().includes('FOB')) ? (
+              <div className="p-3.5 bg-blue-50/70 rounded-xl border border-blue-200/80 text-xs text-blue-900 space-y-1">
+                <div className="flex items-center gap-2 font-bold text-blue-950">
+                  <Ship className="w-4 h-4 text-blue-600" />
+                  <span>Hợp đồng xuất khẩu theo điều kiện Incoterms 2020: FOB {c.cangXepHang || 'Cát Lái (TP.HCM)'}</span>
+                </div>
+                <p className="text-[11.5px] text-blue-800 leading-relaxed">
+                  Người bán (Việt - Úc) có nghĩa vụ giao hàng lên tàu tại cảng bốc {c.cangXepHang || 'Cát Lái'}. Người mua tự chịu chi phí cước biển quốc tế và tự chỉ định cảng dỡ hàng theo quy tắc FOB Incoterms 2020.
+                </p>
               </div>
             ) : (
               <p className="text-[12px] text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200/60">
