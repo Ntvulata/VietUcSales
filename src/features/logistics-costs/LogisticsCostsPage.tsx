@@ -5,7 +5,7 @@ import { subscribeToShipments } from '../shipments/shipmentsService';
 import { subscribeToContracts } from '../contracts/contractsService';
 import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
-import { formatVND, formatUSD, formatNumber } from '../../utils/formatters';
+import { formatVND, formatUSD, formatNumber, formatDateVN } from '../../utils/formatters';
 import { 
   type LogisticsCost, 
   type Shipment, 
@@ -213,7 +213,7 @@ export const LogisticsCostsPage: React.FC = () => {
     setTyGiaQuyDoi(cost.tyGiaQuyDoi || (cost.loaiTien === 'USD' ? 25450 : 1));
     setSoHoaDonChungTu(cost.soHoaDonChungTu || '');
     setTinhTrangThanhToan(cost.tinhTrangThanhToan || 'CHUA_THANH_TOAN');
-    setNgayThanhToan(cost.ngayThanhToan || new Date().toISOString().split('T')[0]);
+    setNgayThanhToan(cost.ngayThanhToan || (cost.tinhTrangThanhToan === 'DA_THANH_TOAN' ? new Date().toISOString().split('T')[0] : ''));
     setGhiChu(cost.ghiChu || '');
     setIsModalOpen(true);
   };
@@ -300,7 +300,7 @@ export const LogisticsCostsPage: React.FC = () => {
         thanhTienVND,
         soHoaDonChungTu: soHoaDonChungTu || '',
         tinhTrangThanhToan,
-        ngayThanhToan: tinhTrangThanhToan === 'DA_THANH_TOAN' ? (ngayThanhToan || '') : '',
+        ngayThanhToan: tinhTrangThanhToan === 'DA_THANH_TOAN' ? (ngayThanhToan || new Date().toISOString().split('T')[0]) : '',
         ghiChu: ghiChu || '',
         createdAt: editingCost?.createdAt,
       };
@@ -474,6 +474,7 @@ export const LogisticsCostsPage: React.FC = () => {
                 <th className="py-2.5 px-3 text-right">Số Lượng</th>
                 <th className="py-2.5 px-3 text-right">Đơn Giá</th>
                 <th className="py-2.5 px-3 text-right">Thành Tiền (VND)</th>
+                <th className="py-2.5 px-3 text-center">Ngày Thanh Toán</th>
                 <th className="py-2.5 px-3">Chứng Từ</th>
                 <th className="py-2.5 px-3 text-center">Trạng Thái Chi</th>
                 <th className="py-2.5 px-3 text-center">Thao Tác</th>
@@ -482,7 +483,7 @@ export const LogisticsCostsPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100 text-[12.5px] leading-snug">
               {filteredCosts.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-6 text-center text-slate-400 text-xs">
+                  <td colSpan={12} className="py-6 text-center text-slate-400 text-xs">
                     Không tìm thấy khoản chi phí nào phù hợp.
                   </td>
                 </tr>
@@ -522,6 +523,13 @@ export const LogisticsCostsPage: React.FC = () => {
                       </td>
                       <td className="py-2 px-3 text-right font-bold text-slate-900 whitespace-nowrap text-[13px]">
                         {formatVND(c.thanhTienVND)}
+                      </td>
+                      <td className="py-2 px-3 text-center whitespace-nowrap text-[11.5px]">
+                        {c.ngayThanhToan ? (
+                          <span className="font-semibold text-slate-800">{formatDateVN(c.ngayThanhToan)}</span>
+                        ) : (
+                          <span className="text-slate-400 italic text-[11px]">—</span>
+                        )}
                       </td>
                       <td className="py-2 px-3 text-[11px] font-mono text-slate-500 whitespace-nowrap">
                         {c.soHoaDonChungTu || '--'}
@@ -600,10 +608,26 @@ export const LogisticsCostsPage: React.FC = () => {
                   <span className="text-slate-500">Số lượng & Đơn giá:</span>
                   <span className="font-semibold text-slate-800">{c.soLuongTinhPhi} {c.donViTinh} × {c.loaiTien === 'USD' ? formatUSD(c.donGia) : formatVND(c.donGia)}</span>
                 </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Ngày thanh toán:</span>
+                  <span className="font-semibold text-slate-800">
+                    {c.ngayThanhToan ? (
+                      <span className="text-emerald-700 font-bold">{formatDateVN(c.ngayThanhToan)}</span>
+                    ) : (
+                      <span className="text-amber-600 font-normal italic">Chưa thanh toán</span>
+                    )}
+                  </span>
+                </div>
                 {c.soHoaDonChungTu && (
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500">Chứng từ:</span>
                     <span className="font-mono text-slate-700">{c.soHoaDonChungTu}</span>
+                  </div>
+                )}
+                {c.ghiChu && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Ghi chú:</span>
+                    <span className="text-slate-700 italic">{c.ghiChu}</span>
                   </div>
                 )}
               </div>
@@ -985,7 +1009,7 @@ export const LogisticsCostsPage: React.FC = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Số Hóa Đơn / Phiếu Chi</label>
               <input
@@ -1001,13 +1025,43 @@ export const LogisticsCostsPage: React.FC = () => {
               <label className="block text-xs font-semibold text-slate-700 mb-1">Trạng Thái Thanh Toán</label>
               <select
                 value={tinhTrangThanhToan}
-                onChange={(e) => setTinhTrangThanhToan(e.target.value as any)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none min-h-[44px] bg-white"
+                onChange={(e) => {
+                  const val = e.target.value as LogisticsCost['tinhTrangThanhToan'];
+                  setTinhTrangThanhToan(val);
+                  if (val === 'DA_THANH_TOAN' && !ngayThanhToan) {
+                    setNgayThanhToan(new Date().toISOString().split('T')[0]);
+                  }
+                }}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none min-h-[44px] bg-white font-medium"
               >
                 <option value="DA_THANH_TOAN">Đã Thanh Toán</option>
                 <option value="CHUA_THANH_TOAN">Chưa Thanh Toán</option>
               </select>
             </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Ngày Thanh Toán {tinhTrangThanhToan === 'DA_THANH_TOAN' && <span className="text-rose-500">*</span>}
+              </label>
+              <input
+                type="date"
+                value={ngayThanhToan}
+                onChange={(e) => setNgayThanhToan(e.target.value)}
+                required={tinhTrangThanhToan === 'DA_THANH_TOAN'}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none min-h-[44px] bg-white font-medium"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Ghi Chú</label>
+            <input
+              type="text"
+              value={ghiChu}
+              onChange={(e) => setGhiChu(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none min-h-[44px]"
+              placeholder="VD: Cước tàu 30 cont, seal chì, tiền chiết khấu..."
+            />
           </div>
 
           {/* Action buttons */}

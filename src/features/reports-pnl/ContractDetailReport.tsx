@@ -887,6 +887,7 @@ export const ContractDetailReport: React.FC<Props> = ({
                       <th className="py-2 px-2.5 text-right">SL Tính Phí</th>
                       <th className="py-2 px-2.5 text-right">Đơn Giá</th>
                       <th className="py-2 px-2.5 text-right">Thành Tiền (VND)</th>
+                      <th className="py-2 px-2.5 text-center">Ngày TT</th>
                       <th className="py-2 px-2.5">Hóa Đơn / CT</th>
                       <th className="py-2 px-2.5 text-center">Tình Trạng</th>
                       <th className="py-2 px-2.5">Ghi Chú</th>
@@ -921,6 +922,13 @@ export const ContractDetailReport: React.FC<Props> = ({
                         <td className="py-1.5 px-2.5 text-right font-extrabold text-rose-700 whitespace-nowrap">
                           {formatVND(cost.thanhTienVND)}
                         </td>
+                        <td className="py-1.5 px-2.5 text-center text-slate-700 whitespace-nowrap text-[11px]">
+                          {cost.ngayThanhToan ? (
+                            <span className="font-semibold text-slate-800">{formatDateVN(cost.ngayThanhToan)}</span>
+                          ) : (
+                            <span className="text-slate-400 italic">—</span>
+                          )}
+                        </td>
                         <td className="py-1.5 px-2.5 text-slate-500 font-mono text-[10.5px] whitespace-nowrap">
                           {cost.soHoaDonChungTu || '—'}
                         </td>
@@ -938,7 +946,7 @@ export const ContractDetailReport: React.FC<Props> = ({
                       <td className="py-2 px-2.5 text-right text-rose-700 font-black">
                         {formatVND(totalCostsVND)}
                       </td>
-                      <td colSpan={3} className="py-2 px-2.5 text-right text-[11.5px]">
+                      <td colSpan={4} className="py-2 px-2.5 text-right text-[11.5px]">
                         <span className="text-emerald-700 font-bold">Đã trả: {formatVND(paidCostsVND)}</span>
                         <span className="mx-2 text-slate-300">|</span>
                         <span className="text-amber-700 font-bold">Còn nợ NCC: {formatVND(unpaidCostsVND)}</span>
