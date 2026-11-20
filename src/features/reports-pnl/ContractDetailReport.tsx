@@ -142,10 +142,21 @@ export const ContractDetailReport: React.FC<Props> = ({
   const finalRevenueVND = totalPaidVND > 0 
     ? (totalPaidVND + expectedRemainingVND) 
     : (tongGiaTriUSD * 25465);
-  const netRevenueVND = finalRevenueVND - totalCostsVND;
-  const marginPercent = finalRevenueVND > 0 ? (netRevenueVND / finalRevenueVND) * 100 : 0;
-  const costPerMT = sanLuongKy > 0 ? totalCostsVND / sanLuongKy : 0;
-  const netRevenuePerMT = sanLuongKy > 0 ? netRevenueVND / sanLuongKy : 0;
+
+  // 1. Giá tại kho tạm tính (trừ toàn bộ chi phí được kê, bao gồm các khoản chưa thanh toán)
+  const netRevenueTamTinhVND = finalRevenueVND - totalCostsVND;
+  const marginPercentTamTinh = finalRevenueVND > 0 ? (netRevenueTamTinhVND / finalRevenueVND) * 100 : 0;
+  const costPerMTTamTinh = sanLuongKy > 0 ? totalCostsVND / sanLuongKy : 0;
+  const netRevenuePerMTTamTinh = sanLuongKy > 0 ? netRevenueTamTinhVND / sanLuongKy : 0;
+
+  // 2. Giá tại kho thực tế (trừ các chi phí đã thực tế thanh toán rồi)
+  const netRevenueThucTeVND = finalRevenueVND - paidCostsVND;
+  const marginPercentThucTe = finalRevenueVND > 0 ? (netRevenueThucTeVND / finalRevenueVND) * 100 : 0;
+  const costPerMTThucTe = sanLuongKy > 0 ? paidCostsVND / sanLuongKy : 0;
+  const netRevenuePerMTThucTe = sanLuongKy > 0 ? netRevenueThucTeVND / sanLuongKy : 0;
+
+  const marginPercent = marginPercentTamTinh;
+  const costPerMT = costPerMTTamTinh;
 
   // Due date calculation
   const today = new Date();
@@ -402,30 +413,31 @@ export const ContractDetailReport: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Card 4: Doanh thu thuần */}
+        {/* Card 4: Giá tại kho (P&L) */}
         <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs print:p-2.5 print:rounded-lg">
           <div className="flex items-center justify-between text-slate-500 mb-1.5">
-            <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Doanh Thu Thuần (P&L)</span>
+            <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">Giá Tại Kho (P&L Thu Về)</span>
             <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-lg font-extrabold text-emerald-600">{formatVND(netRevenueVND)}</span>
-            <span className="text-[10.5px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
-              {marginPercent.toFixed(1)}%
+            <span className="text-lg font-black text-emerald-600">{formatVND(netRevenueTamTinhVND)}</span>
+            <span className="text-[10.5px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+              Tạm tính {marginPercentTamTinh.toFixed(1)}%
             </span>
           </div>
-          <p className="text-[11px] text-slate-500 mt-0.5">
-            Quy đổi: <strong className="text-slate-800">{formatVND(finalRevenueVND)}</strong>
+          <p className="text-[11px] text-slate-600 mt-0.5">
+            Tạm tính: <strong className="text-amber-800">{formatVND(netRevenuePerMTTamTinh)}</strong> / MT
           </p>
-          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-2">
+          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-2 flex">
             <div 
               className="h-full bg-emerald-600 transition-all duration-500"
-              style={{ width: `${Math.max(0, Math.min(100, marginPercent))}%` }}
+              style={{ width: `${Math.max(0, Math.min(100, marginPercentTamTinh))}%` }}
+              title="Tỷ lệ thu về tạm tính"
             />
           </div>
-          <div className="flex items-center justify-between text-[10.5px] text-slate-400 mt-1">
-            <span>Thuần/tấn: {formatVND(netRevenuePerMT)}</span>
-            <span className="text-emerald-700 font-semibold">{marginPercent.toFixed(1)}% thu về</span>
+          <div className="flex items-center justify-between text-[10.5px] text-slate-600 mt-1">
+            <span>Thực tế: <strong className="text-emerald-700">{formatVND(netRevenuePerMTThucTe)}/MT</strong></span>
+            <span className="text-emerald-700 font-bold">{formatVND(netRevenueThucTeVND)}</span>
           </div>
         </div>
       </div>
@@ -1055,8 +1067,13 @@ export const ContractDetailReport: React.FC<Props> = ({
                   )}
 
                   {/* Total Costs */}
-                  <div className="px-3.5 py-2 flex items-center justify-between bg-rose-50/40 font-bold text-rose-900 border-t border-slate-200">
-                    <span className="uppercase text-[11.5px]">II. Tổng Chi Phí Xuất Khẩu & Dịch Vụ (1+2+3+4+5)</span>
+                  <div className="px-3.5 py-2.5 flex items-center justify-between bg-rose-50/50 font-bold text-rose-900 border-t border-slate-200">
+                    <div>
+                      <span className="uppercase text-[11.5px] block font-black">II. Tổng Chi Phí Xuất Khẩu & Dịch Vụ (1+2+3+4+5)</span>
+                      <span className="text-[10.5px] font-normal text-slate-500">
+                        Đã thanh toán (Thực tế): <strong className="text-emerald-700 font-semibold">{formatVND(paidCostsVND)}</strong> • Chưa thanh toán (Tạm tính): <strong className="text-amber-700 font-semibold">{formatVND(unpaidCostsVND)}</strong>
+                      </span>
+                    </div>
                     <div className="flex items-center gap-6">
                       <span className="w-32 text-right text-rose-700 font-black text-[12.5px]">{formatVND(totalCostsVND)}</span>
                       <span className="w-20 text-right font-bold text-rose-700">
@@ -1065,35 +1082,88 @@ export const ContractDetailReport: React.FC<Props> = ({
                     </div>
                   </div>
 
-                  {/* Net Revenue */}
-                  <div className="px-3.5 py-2.5 flex items-center justify-between bg-emerald-100/70 border-t-2 border-emerald-600 font-black text-slate-900 text-[13px]">
+                  {/* Giá tại kho tạm tính */}
+                  <div className="px-3.5 py-2.5 flex items-center justify-between bg-amber-50/70 border-t-2 border-amber-500 font-bold text-slate-900 text-[12.5px]">
                     <div>
-                      <span className="text-emerald-900 uppercase">III. DOANH THU THUẦN SAU CHI PHÍ (I - II)</span>
-                      <p className="text-[11px] text-emerald-800 font-medium">
-                        Lợi nhuận gộp thực tế thu về của hợp đồng
+                      <div className="flex items-center gap-2">
+                        <span className="text-amber-950 uppercase font-black">III. GIÁ TẠI KHO TẠM TÍNH (DỰ KIẾN KÊ KHAI)</span>
+                        <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded font-bold">Tạm tính</span>
+                      </div>
+                      <p className="text-[11px] text-amber-800 font-medium">
+                        = Doanh thu quy đổi - Toàn bộ chi phí được kê (bao gồm các khoản chưa thanh toán)
                       </p>
                     </div>
                     <div className="flex items-center gap-6">
-                      <span className="w-32 text-right text-emerald-700 font-black text-sm">
-                        {formatVND(netRevenueVND)}
+                      <div className="text-right">
+                        <span className="w-32 text-right text-amber-900 font-black text-sm block">
+                          {formatVND(netRevenueTamTinhVND)}
+                        </span>
+                        <span className="text-[11px] text-amber-700 font-bold block">
+                          {formatVND(netRevenuePerMTTamTinh)} / MT
+                        </span>
+                      </div>
+                      <span className="w-20 text-right font-black text-amber-800 text-xs">
+                        {marginPercentTamTinh.toFixed(1)}%
                       </span>
-                      <span className="w-20 text-right font-black text-emerald-700 text-xs">
-                        {marginPercent.toFixed(1)}%
+                    </div>
+                  </div>
+
+                  {/* Giá tại kho thực tế */}
+                  <div className="px-3.5 py-2.5 flex items-center justify-between bg-emerald-100/80 border-t border-emerald-400 font-black text-slate-900 text-[13px]">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-emerald-950 uppercase font-black">IV. GIÁ TẠI KHO THỰC TẾ (ĐÃ CHI TRẢ)</span>
+                        <span className="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded font-bold">Thực tế</span>
+                      </div>
+                      <p className="text-[11px] text-emerald-800 font-medium">
+                        = Doanh thu quy đổi - Các khoản chi phí đã thực tế thanh toán rồi
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="text-right">
+                        <span className="w-32 text-right text-emerald-800 font-black text-sm block">
+                          {formatVND(netRevenueThucTeVND)}
+                        </span>
+                        <span className="text-[11px] text-emerald-700 font-bold block">
+                          {formatVND(netRevenuePerMTThucTe)} / MT
+                        </span>
+                      </div>
+                      <span className="w-20 text-right font-black text-emerald-800 text-xs">
+                        {marginPercentThucTe.toFixed(1)}%
                       </span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Extra unit economics metrics */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                  <span className="text-slate-600">Chi phí dịch vụ bình quân / tấn:</span>
-                  <span className="font-extrabold text-slate-900">{formatVND(costPerMT)} / MT</span>
+              {/* Extra unit economics metrics (4 Cards) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
+                <div className="p-2.5 bg-amber-50/80 rounded-xl border border-amber-200 space-y-1">
+                  <span className="text-amber-800 font-bold text-[11px] uppercase tracking-wider block">Giá Kho Tạm Tính</span>
+                  <p className="font-extrabold text-amber-950 text-base">{formatVND(netRevenuePerMTTamTinh)} <span className="text-xs font-semibold">/ MT</span></p>
+                  <p className="text-[10.5px] text-amber-700">Tổng thu: <strong>{formatVND(netRevenueTamTinhVND)}</strong></p>
+                  <p className="text-[10px] text-slate-400 italic">Trừ toàn bộ CP kê khai</p>
                 </div>
-                <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                  <span className="text-slate-600">Doanh thu thuần bình quân / tấn:</span>
-                  <span className="font-extrabold text-emerald-600">{formatVND(netRevenuePerMT)} / MT</span>
+
+                <div className="p-2.5 bg-emerald-50/80 rounded-xl border border-emerald-200 space-y-1">
+                  <span className="text-emerald-800 font-bold text-[11px] uppercase tracking-wider block">Giá Kho Thực Tế</span>
+                  <p className="font-black text-emerald-800 text-base">{formatVND(netRevenuePerMTThucTe)} <span className="text-xs font-semibold">/ MT</span></p>
+                  <p className="text-[10.5px] text-emerald-700">Tổng thu: <strong>{formatVND(netRevenueThucTeVND)}</strong></p>
+                  <p className="text-[10px] text-slate-400 italic">Trừ CP đã thanh toán</p>
+                </div>
+
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                  <span className="text-slate-600 font-bold text-[11px] uppercase tracking-wider block">Chi Phí Tạm Tính / MT</span>
+                  <p className="font-extrabold text-slate-900 text-base">{formatVND(costPerMTTamTinh)} <span className="text-xs font-semibold">/ MT</span></p>
+                  <p className="text-[10.5px] text-slate-600">Tổng CP: <strong>{formatVND(totalCostsVND)}</strong></p>
+                  <p className="text-[10px] text-slate-400 italic">Toàn bộ 5 nhóm chi phí</p>
+                </div>
+
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                  <span className="text-slate-600 font-bold text-[11px] uppercase tracking-wider block">Chi Phí Thực Tế / MT</span>
+                  <p className="font-extrabold text-slate-900 text-base">{formatVND(costPerMTThucTe)} <span className="text-xs font-semibold">/ MT</span></p>
+                  <p className="text-[10.5px] text-emerald-700">Đã trả: <strong>{formatVND(paidCostsVND)}</strong></p>
+                  <p className="text-[10px] text-amber-700 font-semibold">Nợ: {formatVND(unpaidCostsVND)}</p>
                 </div>
               </div>
             </div>

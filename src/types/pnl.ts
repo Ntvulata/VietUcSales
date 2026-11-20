@@ -10,6 +10,13 @@ export interface PnLSummary {
   tongChiPhiNganHangVND: number;      // Phí L/C và các dòng phí ngân hàng khác
   tongChiPhiKhacVND: number;          // Chi phí khác phát sinh
   tongChiPhiXuatKhauVND: number;      // Tổng 5 nhóm chi phí dịch vụ/logistics xuất khẩu
-  loiNhuanGopVND: number;             // Doanh thu - Tổng chi phí xuất khẩu
-  tySuatLoiNhuanPercent: number;      // Lợi nhuận / Doanh thu VND (%)
+  chiPhiDaThanhToanVND: number;       // Chi phí thực tế đã thanh toán
+  chiPhiChuaThanhToanVND: number;     // Chi phí được kê chưa thanh toán (tạm tính)
+  giaTaiKhoTamTinhVND: number;        // Doanh thu - Tổng chi phí kê (gồm chưa thanh toán)
+  giaTaiKhoThucTeVND: number;         // Doanh thu - Chi phí đã thanh toán
+  donGiaTaiKhoTamTinhVND: number;     // Giá tại kho tạm tính / MT
+  donGiaTaiKhoThucTeVND: number;      // Giá tại kho thực tế / MT
+  loiNhuanGopVND: number;             // = giaTaiKhoTamTinhVND
+  tySuatLoiNhuanPercent: number;      // Tỷ suất LN tạm tính (%)
+  tySuatLoiNhuanThucTePercent: number;// Tỷ suất LN thực tế (%)
 }
